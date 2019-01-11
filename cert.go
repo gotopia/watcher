@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"crypto/rsa"
+	"sync"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -14,24 +15,28 @@ type fetchCertResp struct {
 	Expiry time.Time
 }
 
-var fetchCertResps = map[string]*fetchCertResp{}
+var fetchCertResps sync.Map
 
 const httpStatusOK = "200 OK"
 const cacheAge = 2 * time.Hour
 
 func fetchKey(uri string, kid string) (key *rsa.PublicKey, err error) {
-	r := fetchCertResps[uri]
-	if r != nil && r.Expiry.After(time.Now()) && r.Certs[kid] != "" {
-		cert := r.Certs[kid]
-		return jwt.ParseRSAPublicKeyFromPEM([]byte(cert))
+	var cr *fetchCertResp
+	r, ok := fetchCertResps.Load(uri)
+	if ok {
+		cr, ok := r.(*fetchCertResp)
+		if ok && cr.Expiry.After(time.Now()) && cr.Certs[kid] != "" {
+			cert := cr.Certs[kid]
+			return jwt.ParseRSAPublicKeyFromPEM([]byte(cert))
+		}
 	}
-	resp, err := resty.R().SetResult(&r).Get(uri)
+	resp, err := resty.R().SetResult(&cr).Get(uri)
 	if err != nil || resp.Status() != httpStatusOK {
 		err = errors.Errorf("fail to fetch certs from uri: %v", uri)
 		return
 	}
-	r.Expiry = time.Now().Add(cacheAge)
-	fetchCertResps[uri] = r
-	cert := r.Certs[kid]
+	cr.Expiry = time.Now().Add(cacheAge)
+	fetchCertResps.Store(uri, cr)
+	cert := cr.Certs[kid]
 	return jwt.ParseRSAPublicKeyFromPEM([]byte(cert))
 }
