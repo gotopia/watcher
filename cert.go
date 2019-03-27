@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"crypto/rsa"
+	"fmt"
 	"sync"
 	"time"
 
@@ -37,6 +38,10 @@ func fetchKey(uri string, kid string) (key *rsa.PublicKey, err error) {
 	}
 	cr.Expiry = time.Now().Add(cacheAge)
 	fetchCertResps.Store(uri, cr)
-	cert := cr.Certs[kid]
+	cert, ok := cr.Certs[kid]
+	if !ok {
+		err = jwt.NewValidationError(fmt.Sprintf("invalid kid: %v", kid), jwt.ValidationErrorClaimsInvalid)
+		return
+	}
 	return jwt.ParseRSAPublicKeyFromPEM([]byte(cert))
 }
