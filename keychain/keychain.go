@@ -80,7 +80,7 @@ func (k *Keychain) initWithKeyDir(dir string) {
 		panic("no key in this directory")
 	}
 	for _, key := range k.privateKeys {
-		if k.certs[key.Kid] == "" {
+		if _, ok := k.certs[key.Kid]; !ok {
 			panic("some cert is missing")
 		}
 	}
