@@ -32,8 +32,12 @@ func fetchKey(uri string, kid string) (key *rsa.PublicKey, err error) {
 		}
 	}
 	resp, err := resty.R().SetResult(&cr).Get(uri)
-	if err != nil || resp.Status() != httpStatusOK {
-		err = errors.Errorf("fail to fetch certs from uri: %v", uri)
+	if err != nil {
+		err = errors.Wrapf(err, "fail to fetch certs from uri: %v", uri)
+		return
+	}
+	if !resp.IsSuccess() {
+		err = errors.Errorf("fail to fetch certs from uri: %v, status: %v, response: %v", uri, resp.Status(), resp)
 		return
 	}
 	cr.Expiry = time.Now().Add(cacheAge)
